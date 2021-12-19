@@ -1,65 +1,60 @@
 #ifndef __DWA_PLANNER_H
 #define __DWA_PLANNER_H
 
-#include <ros/ros.h>
-#include <tf/tf.h>
-#include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <sensor_msgs/LaserScan.h>
-#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Twist.h>
 #include <nav_msgs/OccupancyGrid.h>
-#include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
+#include <nav_msgs/Odometry.h>
+#include <ros/ros.h>
+#include <sensor_msgs/LaserScan.h>
 #include <tf/tf.h>
 #include <tf/transform_listener.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include <Eigen/Dense>
 
-class DWAPlanner
-{
+namespace dwa_planner {
+struct State {
+    State(double _x, double _y, double _yaw, double _velocity_x, double _velocity_y, double _yawrate);
+    double x; // robot position x
+    double y; // robot posiiton y
+    double yaw; // robot orientation yaw
+    double velocity_x; // robot linear velocity x
+    double velocity_y; // robot linear velocity y
+    double yawrate; // robot angular velocity
+};
+
+struct Window {
+    Window(void);
+    Window(const double min_v, const double max_v, const double min_y, const double max_y);
+    double min_velocity;
+    double max_velocity;
+    double min_yawrate;
+    double max_yawrate;
+};
+
+class DWAPlanner {
 public:
     DWAPlanner(void);
 
-    class State
-    {
-    public:
-        State(double, double, double, double, double);
-
-        double x;// robot position x
-        double y;// robot posiiton y
-        double yaw;// robot orientation yaw
-        double velocity;// robot linear velocity
-        double yawrate;// robot angular velocity
-    private:
-    };
-
-    class Window
-    {
-    public:
-        Window(void);
-        Window(const double, const double, const double, const double);
-        double min_velocity;
-        double max_velocity;
-        double min_yawrate;
-        double max_yawrate;
-    private:
-    };
+    virtual void initialize_params(const ros::NodeHandle& lnh);
+    void local_goal_callback(const geometry_msgs::PoseStampedConstPtr& msg);
+    void scan_callback(const sensor_msgs::LaserScanConstPtr& msg);
+    void local_map_callback(const nav_msgs::OccupancyGridConstPtr& msg);
+    void odom_callback(const nav_msgs::OdometryConstPtr& msg);
+    void target_velocity_callback(const geometry_msgs::TwistConstPtr& msg);
+    virtual Window calc_dynamic_window(const geometry_msgs::Twist& current_velocity);
+    virtual float calc_to_goal_cost(const std::vector<State>& traj, const Eigen::Vector3d& goal);
+    virtual float calc_speed_cost(const std::vector<State>& traj, const float target_velocity);
+    virtual float calc_obstacle_cost(const std::vector<State>& traj, const std::vector<std::vector<float>>&);
+    virtual void motion(State& state, const double velocity, const double yawrate);
+    std::vector<std::vector<float>> scan_to_obs(void);
+    std::vector<std::vector<float>> raycast(void);
+    void visualize_trajectories(const std::vector<std::vector<State>>& trajectories, const double r, const double g, const double b, const int trajectories_size, const ros::Publisher& pub);
+    void visualize_trajectory(const std::vector<State>& trajectory, const double r, const double g, const double b, const ros::Publisher& pub);
+    virtual std::vector<State> dwa_planning(Window dynamic_window, Eigen::Vector3d goal, std::vector<std::vector<float>> obs_list);
     void process(void);
-    void local_goal_callback(const geometry_msgs::PoseStampedConstPtr&);
-    void scan_callback(const sensor_msgs::LaserScanConstPtr&);
-    void local_map_callback(const nav_msgs::OccupancyGridConstPtr&);
-    void odom_callback(const nav_msgs::OdometryConstPtr&);
-    void target_velocity_callback(const geometry_msgs::TwistConstPtr&);
-    Window calc_dynamic_window(const geometry_msgs::Twist&);
-    float calc_to_goal_cost(const std::vector<State>& traj, const Eigen::Vector3d& goal);
-    float calc_speed_cost(const std::vector<State>& traj, const float target_velocity);
-    float calc_obstacle_cost(const std::vector<State>& traj, const std::vector<std::vector<float>>&);
-    void motion(State& state, const double velocity, const double yawrate);
-    std::vector<std::vector<float>> raycast();
-    std::vector<std::vector<float>> scan_to_obs();
-    void visualize_trajectories(const std::vector<std::vector<State>>&, const double, const double, const double, const int, const ros::Publisher&);
-    void visualize_trajectory(const std::vector<State>&, const double, const double, const double, const ros::Publisher&);
-    std::vector<State> dwa_planning(Window, Eigen::Vector3d, std::vector<std::vector<float>>);
 
 protected:
     double HZ;
@@ -105,5 +100,6 @@ protected:
     bool local_map_updated;
     bool odom_updated;
 };
+} // namespace dwa_planner
 
 #endif //__DWA_PLANNER_H
