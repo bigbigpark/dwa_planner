@@ -7,8 +7,8 @@
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
-#include <tf/tf.h>
-#include <tf/transform_listener.h>
+#include <tf2/utils.h>
+#include <tf2_ros/transform_listener.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -91,8 +91,10 @@ protected:
     ros::Subscriber local_goal_sub;
     ros::Subscriber odom_sub;
     ros::Subscriber target_velocity_sub;
-    tf::TransformListener global_to_robot_tf;
-    tf::TransformListener lidar_tf;
+    tf2_ros::Buffer global_to_robot_buffer;
+    tf2_ros::Buffer lidar_buffer;
+    tf2_ros::TransformListener global_to_robot_tf;
+    tf2_ros::TransformListener lidar_tf;
 
     geometry_msgs::PoseStamped local_goal;
     sensor_msgs::LaserScan scan;

@@ -37,6 +37,8 @@ DWAPlanner::DWAPlanner(void)
     , scan_updated(false)
     , local_map_updated(false)
     , odom_updated(false)
+    , global_to_robot_tf(global_to_robot_buffer)
+    , lidar_tf(lidar_buffer)
 {
     local_nh.param("HZ", HZ, { 20 });
     local_nh.param("ROBOT_FRAME", ROBOT_FRAME, { "base_link" });
@@ -100,11 +102,11 @@ void DWAPlanner::initialize_node(ros::NodeHandle& n, ros::NodeHandle& ln)
 
 void DWAPlanner::local_goal_callback(const geometry_msgs::PoseStampedConstPtr& msg)
 {
-    local_goal = *msg;
+    geometry_msgs::PoseStamped local_goal_raw = *msg;
     try {
-        global_to_robot_tf.transformPose(ROBOT_FRAME, ros::Time(0), local_goal, local_goal.header.frame_id, local_goal);
+        global_to_robot_buffer.transform(local_goal_raw, local_goal, ROBOT_FRAME);
         local_goal_subscribed = true;
-    } catch (tf::TransformException ex) {
+    } catch (tf2::TransformException ex) {
         ROS_ERROR("%s", ex.what());
     }
 }
@@ -113,9 +115,13 @@ void DWAPlanner::scan_callback(const sensor_msgs::LaserScanConstPtr& msg)
 {
     scan = *msg;
     try {
-        tf::StampedTransform transform;
-        lidar_tf.lookupTransform(ROBOT_FRAME, scan.header.frame_id, ros::Time(0), transform);
-    } catch (tf::TransformException ex) {
+        geometry_msgs::TransformStamped transform = lidar_buffer.lookupTransform(ROBOT_FRAME, scan.header.frame_id, ros::Time(0));
+        double yaw = tf2::getYaw(transform.transform.rotation);
+        scan.angle_min = scan.angle_min + yaw;
+        scan.angle_min = std::atan2(std::sin(scan.angle_min), std::cos(scan.angle_min));
+        scan.angle_max = scan.angle_max + yaw;
+        scan.angle_max = std::atan2(std::sin(scan.angle_max), std::cos(scan.angle_max));
+    } catch (tf2::TransformException ex) {
         ROS_ERROR("%s", ex.what());
     }
     scan_updated = true;
@@ -198,6 +204,9 @@ std::vector<std::vector<float>> DWAPlanner::scan_to_obs()
         std::vector<float> obs_state = { x, y };
         obs_list.push_back(obs_state);
         angle += scan.angle_increment;
+        if (angle > M_PI) {
+            angle -= 2 * M_PI;
+        }
     }
     return obs_list;
 }
@@ -361,7 +370,7 @@ void DWAPlanner::process(void)
         }
         if (input_updated && local_goal_subscribed && odom_updated) {
             Window dynamic_window = calc_dynamic_window(current_velocity);
-            Eigen::Vector3d goal(local_goal.pose.position.x, local_goal.pose.position.y, tf::getYaw(local_goal.pose.orientation));
+            Eigen::Vector3d goal(local_goal.pose.position.x, local_goal.pose.position.y, tf2::getYaw(local_goal.pose.orientation));
             ROS_INFO_STREAM("local goal: (" << goal[0] << "," << goal[1] << "," << goal[2] / M_PI * 180 << ")");
 
             geometry_msgs::Twist cmd_vel;
