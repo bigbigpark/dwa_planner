@@ -12,18 +12,22 @@ State::State(double _x, double _y, double _yaw, double _velocity_x, double _velo
 }
 
 Window::Window(void)
-    : min_velocity(0.0)
-    , max_velocity(0.0)
+    : min_velocity_x(0.0)
+    , max_velocity_x(0.0)
+    , min_velocity_y(0.0)
+    , max_velocity_y(0.0)
     , min_yawrate(0.0)
     , max_yawrate(0.0)
 {
 }
 
-Window::Window(const double min_v, const double max_v, const double min_y, const double max_y)
-    : min_velocity(min_v)
-    , max_velocity(max_v)
-    , min_yawrate(min_y)
-    , max_yawrate(max_y)
+Window::Window(const double _min_velocity_x, const double _max_velocity_x, const double _min_velocity_y, const double _max_velocity_y, const double _min_yawrate, const double _max_yawrate)
+    : min_velocity_x(_min_velocity_x)
+    , max_velocity_x(_max_velocity_x)
+    , min_velocity_y(_min_velocity_y)
+    , max_velocity_y(_max_velocity_y)
+    , min_yawrate(_min_yawrate)
+    , max_yawrate(_max_yawrate)
 {
 }
 
@@ -34,52 +38,33 @@ DWAPlanner::DWAPlanner(void)
     , local_map_updated(false)
     , odom_updated(false)
 {
-    initialize_params(local_nh);
-
-    velocity_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
-    candidate_trajectories_pub = local_nh.advertise<visualization_msgs::MarkerArray>("candidate_trajectories", 1);
-    selected_trajectory_pub = local_nh.advertise<visualization_msgs::Marker>("selected_trajectory", 1);
-
-    local_goal_sub = nh.subscribe("/local_goal", 1, &DWAPlanner::local_goal_callback, this);
-    if (USE_SCAN_AS_INPUT) {
-        scan_sub = nh.subscribe("/scan", 1, &DWAPlanner::scan_callback, this);
-    } else {
-        local_map_sub = nh.subscribe("/local_map", 1, &DWAPlanner::local_map_callback, this);
-    }
-    odom_sub = nh.subscribe("/odom", 1, &DWAPlanner::odom_callback, this);
-    target_velocity_sub = nh.subscribe("/target_velocity", 1, &DWAPlanner::target_velocity_callback, this);
-}
-
-void DWAPlanner::initialize_params(const ros::NodeHandle& lnh)
-{
-    lnh.param("HZ", HZ, { 20 });
-    lnh.param("ROBOT_FRAME", ROBOT_FRAME, { "base_link" });
-    lnh.param("TARGET_VELOCITY", TARGET_VELOCITY, { 0.8 });
-    lnh.param("MAX_VELOCITY", MAX_VELOCITY, { 1.0 });
-    lnh.param("MIN_VELOCITY", MIN_VELOCITY, { 0.0 });
-    lnh.param("MAX_YAWRATE", MAX_YAWRATE, { 0.8 });
-    lnh.param("MAX_ACCELERATION", MAX_ACCELERATION, { 1.0 });
-    lnh.param("MAX_D_YAWRATE", MAX_D_YAWRATE, { 2.0 });
-    lnh.param("MAX_DIST", MAX_DIST, { 10.0 });
-    lnh.param("VELOCITY_RESOLUTION", VELOCITY_RESOLUTION, { 0.1 });
-    lnh.param("YAWRATE_RESOLUTION", YAWRATE_RESOLUTION, { 0.1 });
-    lnh.param("ANGLE_RESOLUTION", ANGLE_RESOLUTION, { 0.2 });
-    lnh.param("PREDICT_TIME", PREDICT_TIME, { 3.0 });
-    lnh.param("TO_GOAL_COST_GAIN", TO_GOAL_COST_GAIN, { 1.0 });
-    lnh.param("SPEED_COST_GAIN", SPEED_COST_GAIN, { 1.0 });
-    lnh.param("OBSTACLE_COST_GAIN", OBSTACLE_COST_GAIN, { 1.0 });
-    lnh.param("USE_SCAN_AS_INPUT", USE_SCAN_AS_INPUT, { false });
-    lnh.param("GOAL_THRESHOLD", GOAL_THRESHOLD, { 0.3 });
-    lnh.param("TURN_DIRECTION_THRESHOLD", TURN_DIRECTION_THRESHOLD, { 1.0 });
+    local_nh.param("HZ", HZ, { 20 });
+    local_nh.param("ROBOT_FRAME", ROBOT_FRAME, { "base_link" });
+    local_nh.param("TARGET_VELOCITY", TARGET_VELOCITY, { 0.8 });
+    local_nh.param("MAX_VELOCITY", MAX_VELOCITY_X, { 1.0 });
+    local_nh.param("MIN_VELOCITY", MIN_VELOCITY_X, { 0.0 });
+    local_nh.param("MAX_YAWRATE", MAX_YAWRATE, { 0.8 });
+    local_nh.param("MAX_ACCELERATION", MAX_ACCELERATION, { 1.0 });
+    local_nh.param("MAX_D_YAWRATE", MAX_D_YAWRATE, { 2.0 });
+    local_nh.param("MAX_DIST", MAX_DIST, { 10.0 });
+    local_nh.param("VELOCITY_RESOLUTION", VELOCITY_RESOLUTION, { 0.1 });
+    local_nh.param("YAWRATE_RESOLUTION", YAWRATE_RESOLUTION, { 0.1 });
+    local_nh.param("ANGLE_RESOLUTION", ANGLE_RESOLUTION, { 0.2 });
+    local_nh.param("PREDICT_TIME", PREDICT_TIME, { 3.0 });
+    local_nh.param("TO_GOAL_COST_GAIN", TO_GOAL_COST_GAIN, { 1.0 });
+    local_nh.param("SPEED_COST_GAIN", SPEED_COST_GAIN, { 1.0 });
+    local_nh.param("OBSTACLE_COST_GAIN", OBSTACLE_COST_GAIN, { 1.0 });
+    local_nh.param("USE_SCAN_AS_INPUT", USE_SCAN_AS_INPUT, { false });
+    local_nh.param("GOAL_THRESHOLD", GOAL_THRESHOLD, { 0.3 });
+    local_nh.param("TURN_DIRECTION_THRESHOLD", TURN_DIRECTION_THRESHOLD, { 1.0 });
     DT = 1.0 / HZ;
 
-    ROS_INFO("=== DWA Planner ===");
     ROS_INFO_STREAM("HZ: " << HZ);
     ROS_INFO_STREAM("DT: " << DT);
     ROS_INFO_STREAM("ROBOT_FRAME: " << ROBOT_FRAME);
     ROS_INFO_STREAM("TARGET_VELOCITY: " << TARGET_VELOCITY);
-    ROS_INFO_STREAM("MAX_VELOCITY: " << MAX_VELOCITY);
-    ROS_INFO_STREAM("MIN_VELOCITY: " << MIN_VELOCITY);
+    ROS_INFO_STREAM("MAX_VELOCITY: " << MAX_VELOCITY_X);
+    ROS_INFO_STREAM("MIN_VELOCITY: " << MIN_VELOCITY_X);
     ROS_INFO_STREAM("MAX_YAWRATE: " << MAX_YAWRATE);
     ROS_INFO_STREAM("MAX_ACCELERATION: " << MAX_ACCELERATION);
     ROS_INFO_STREAM("MAX_D_YAWRATE: " << MAX_D_YAWRATE);
@@ -93,13 +78,31 @@ void DWAPlanner::initialize_params(const ros::NodeHandle& lnh)
     ROS_INFO_STREAM("OBSTACLE_COST_GAIN: " << OBSTACLE_COST_GAIN);
     ROS_INFO_STREAM("GOAL_THRESHOLD: " << GOAL_THRESHOLD);
     ROS_INFO_STREAM("TURN_DIRECTION_THRESHOLD: " << TURN_DIRECTION_THRESHOLD);
+
+    initialize_node(nh, local_nh);
+}
+
+void DWAPlanner::initialize_node(ros::NodeHandle& n, ros::NodeHandle& ln)
+{
+    velocity_pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
+    candidate_trajectories_pub = ln.advertise<visualization_msgs::MarkerArray>("candidate_trajectories", 1);
+    selected_trajectory_pub = ln.advertise<visualization_msgs::Marker>("selected_trajectory", 1);
+
+    local_goal_sub = n.subscribe("/local_goal", 1, &DWAPlanner::local_goal_callback, this);
+    if (USE_SCAN_AS_INPUT) {
+        scan_sub = n.subscribe("/scan", 1, &DWAPlanner::scan_callback, this);
+    } else {
+        local_map_sub = n.subscribe("/local_map", 1, &DWAPlanner::local_map_callback, this);
+    }
+    odom_sub = n.subscribe("/odom", 1, &DWAPlanner::odom_callback, this);
+    target_velocity_sub = n.subscribe("/target_velocity", 1, &DWAPlanner::target_velocity_callback, this);
 }
 
 void DWAPlanner::local_goal_callback(const geometry_msgs::PoseStampedConstPtr& msg)
 {
     local_goal = *msg;
     try {
-        listener.transformPose(ROBOT_FRAME, ros::Time(0), local_goal, local_goal.header.frame_id, local_goal);
+        global_to_robot_tf.transformPose(ROBOT_FRAME, ros::Time(0), local_goal, local_goal.header.frame_id, local_goal);
         local_goal_subscribed = true;
     } catch (tf::TransformException ex) {
         ROS_ERROR("%s", ex.what());
@@ -109,6 +112,12 @@ void DWAPlanner::local_goal_callback(const geometry_msgs::PoseStampedConstPtr& m
 void DWAPlanner::scan_callback(const sensor_msgs::LaserScanConstPtr& msg)
 {
     scan = *msg;
+    try {
+        tf::StampedTransform transform;
+        lidar_tf.lookupTransform(ROBOT_FRAME, scan.header.frame_id, ros::Time(0), transform);
+    } catch (tf::TransformException ex) {
+        ROS_ERROR("%s", ex.what());
+    }
     scan_updated = true;
 }
 
@@ -132,9 +141,9 @@ void DWAPlanner::target_velocity_callback(const geometry_msgs::TwistConstPtr& ms
 
 Window DWAPlanner::calc_dynamic_window(const geometry_msgs::Twist& current_velocity)
 {
-    Window window(MIN_VELOCITY, MAX_VELOCITY, -MAX_YAWRATE, MAX_YAWRATE);
-    window.min_velocity = std::max((current_velocity.linear.x - MAX_ACCELERATION * DT), MIN_VELOCITY);
-    window.max_velocity = std::min((current_velocity.linear.x + MAX_ACCELERATION * DT), MAX_VELOCITY);
+    Window window(MIN_VELOCITY_X, MAX_VELOCITY_X, 0.0, 0.0, -MAX_YAWRATE, MAX_YAWRATE);
+    window.min_velocity_x = std::max((current_velocity.linear.x - MAX_ACCELERATION * DT), MIN_VELOCITY_X);
+    window.max_velocity_x = std::min((current_velocity.linear.x + MAX_ACCELERATION * DT), MAX_VELOCITY_X);
     window.min_yawrate = std::max((current_velocity.angular.z - MAX_D_YAWRATE * DT), -MAX_YAWRATE);
     window.max_yawrate = std::min((current_velocity.angular.z + MAX_D_YAWRATE * DT), MAX_YAWRATE);
     return window;
@@ -299,7 +308,7 @@ std::vector<State> DWAPlanner::dwa_planning(
     std::vector<std::vector<State>> trajectories;
     std::vector<State> best_traj;
 
-    for (float v = dynamic_window.min_velocity; v <= dynamic_window.max_velocity; v += VELOCITY_RESOLUTION) {
+    for (float v = dynamic_window.min_velocity_x; v <= dynamic_window.max_velocity_x; v += VELOCITY_RESOLUTION) {
         for (float y = dynamic_window.min_yawrate; y <= dynamic_window.max_yawrate; y += YAWRATE_RESOLUTION) {
             State state(0.0, 0.0, 0.0, current_velocity.linear.x, 0.0, current_velocity.angular.z);
             std::vector<State> traj;

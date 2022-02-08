@@ -127,21 +127,23 @@ include_directories(
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/dwa_planner.cpp
 # )
-add_library(dwa_planner_lib
-  src/dwa_planner.cpp
-)
+# add_library(dwa_planner_lib
+#   src/dwa_planner.cpp
+#   src/dwa_planner_for_mecanum.cpp
+# )
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
 # add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(dwa_planner_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# add_dependencies(dwa_planner_lib ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/dwa_planner_node.cpp)
-add_executable(dwa_planner src/dwa_planner_node.cpp)
+# add_executable(dwa_planner src/dwa_planner_node.cpp)
+add_executable(dwa_planner src/dwa_planner.cpp src/dwa_planner_for_mecanum.cpp src/dwa_planner_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -159,7 +161,7 @@ add_executable(dwa_planner src/dwa_planner_node.cpp)
 # )
 target_link_libraries(dwa_planner
   ${catkin_LIBRARIES}
-  dwa_planner_lib
+  # dwa_planner_lib
 )
 
 #############

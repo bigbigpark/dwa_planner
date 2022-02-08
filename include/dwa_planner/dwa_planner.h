@@ -27,9 +27,11 @@ struct State {
 
 struct Window {
     Window(void);
-    Window(const double min_v, const double max_v, const double min_y, const double max_y);
-    double min_velocity;
-    double max_velocity;
+    Window(const double _min_velocity_x, const double _max_velocity_x, const double _min_velocity_y, const double _max_velocity_y, const double _min_yawrate, const double _max_yawrate);
+    double min_velocity_x;
+    double max_velocity_x;
+    double min_velocity_y;
+    double max_velocity_y;
     double min_yawrate;
     double max_yawrate;
 };
@@ -38,7 +40,7 @@ class DWAPlanner {
 public:
     DWAPlanner(void);
 
-    virtual void initialize_params(const ros::NodeHandle& lnh);
+    void initialize_node(ros::NodeHandle& n, ros::NodeHandle& ln);
     void local_goal_callback(const geometry_msgs::PoseStampedConstPtr& msg);
     void scan_callback(const sensor_msgs::LaserScanConstPtr& msg);
     void local_map_callback(const nav_msgs::OccupancyGridConstPtr& msg);
@@ -60,8 +62,8 @@ protected:
     double HZ;
     std::string ROBOT_FRAME;
     double TARGET_VELOCITY;
-    double MAX_VELOCITY;
-    double MIN_VELOCITY;
+    double MAX_VELOCITY_X;
+    double MIN_VELOCITY_X;
     double MAX_YAWRATE;
     double MAX_ACCELERATION;
     double MAX_D_YAWRATE;
@@ -89,7 +91,8 @@ protected:
     ros::Subscriber local_goal_sub;
     ros::Subscriber odom_sub;
     ros::Subscriber target_velocity_sub;
-    tf::TransformListener listener;
+    tf::TransformListener global_to_robot_tf;
+    tf::TransformListener lidar_tf;
 
     geometry_msgs::PoseStamped local_goal;
     sensor_msgs::LaserScan scan;
